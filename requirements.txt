@@ -1,0 +1,5 @@
+matplotlib==3.10.3
+pandas==2.3.0
+python-dateutil==1.4
+requests==2.32.4
+seaborn==0.13.2
