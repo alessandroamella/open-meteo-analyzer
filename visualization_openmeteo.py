@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -11,7 +12,7 @@ import seaborn as sns
 
 
 def visualize_weather_data(
-    filename, year=None, year_range=None, month=None, month_range=None
+    filename, year=None, year_range=None, month=None, month_range=None, dark_theme=False
 ):
     if not os.path.exists(filename):
         print(f"❌ File '{filename}' not found.")
@@ -61,22 +62,46 @@ def visualize_weather_data(
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
 
+    # Get current date for filtering
+    current_date = datetime.now()
+    current_year = current_date.year
+    current_month = current_date.month
+
     # Apply filters
     df_filtered = df.copy()
 
     # Filter by year
     if year is not None:
+        if year >= current_year:
+            year = min(year, current_year - 1)
         df_filtered = df_filtered[df_filtered["year"] == year]
         print(f"🔍 Filtering data for year: {year}")
     elif year_range is not None:
         start_year, end_year = year_range
+        if end_year >= current_year:
+            end_year = min(end_year, current_year - 1)
+        if start_year >= current_year:
+            print(
+                f"❌ No data available: start year {start_year} is current year or later"
+            )
+            return
         df_filtered = df_filtered[
             (df_filtered["year"] >= start_year) & (df_filtered["year"] <= end_year)
         ]
         print(f"🔍 Filtering data for years: {start_year}-{end_year}")
+    else:
+        # If no year filter specified, exclude current year
+        df_filtered = df_filtered[df_filtered["year"] < current_year]
 
     # Filter by month
     if month is not None:
+        # Exclude current and future months for the current year
+        df_filtered = df_filtered[
+            ~(
+                (df_filtered["year"] == current_year)
+                & (df_filtered["month"] >= current_month)
+            )
+        ]
         df_filtered = df_filtered[df_filtered["month"] == month]
         month_name = (
             df_filtered["date"].dt.strftime("%B").iloc[0]
@@ -86,6 +111,13 @@ def visualize_weather_data(
         print(f"🔍 Filtering data for month: {month_name}")
     elif month_range is not None:
         start_month, end_month = month_range
+        # Exclude current and future months for the current year
+        df_filtered = df_filtered[
+            ~(
+                (df_filtered["year"] == current_year)
+                & (df_filtered["month"] >= current_month)
+            )
+        ]
         if start_month <= end_month:
             # Same year range (e.g., March to August)
             df_filtered = df_filtered[
@@ -99,6 +131,14 @@ def visualize_weather_data(
                 | (df_filtered["month"] <= end_month)
             ]
         print(f"🔍 Filtering data for months: {start_month}-{end_month}")
+    else:
+        # If no month filter specified, exclude current and future months for current year
+        df_filtered = df_filtered[
+            ~(
+                (df_filtered["year"] == current_year)
+                & (df_filtered["month"] >= current_month)
+            )
+        ]
 
     # Remove rows with missing mean temp
     df_clean = df_filtered.dropna(subset=["temp_mean"])
@@ -115,15 +155,33 @@ def visualize_weather_data(
     )
 
     # Plotting
-    sns.set_theme(style="whitegrid", palette="muted")
-    fig, ax = plt.subplots(figsize=(15, 8))
+    if dark_theme:
+        print("🌙 Using dark theme")
+        plt.style.use("dark_background")
+        sns.set_theme(style="darkgrid", palette="bright")
+        fig, ax = plt.subplots(figsize=(15, 8))
+        # Set dark background colors explicitly
+        fig.patch.set_facecolor("black")
+        ax.set_facecolor("black")
+    else:
+        sns.set_theme(style="whitegrid", palette="muted")
+        fig, ax = plt.subplots(figsize=(15, 8))
 
     # Fill range between min and max
+    if dark_theme:
+        fill_color = "steelblue"
+        line_color = "cyan"
+        grid_color = "gray"
+    else:
+        fill_color = "skyblue"
+        line_color = "royalblue"
+        grid_color = None
+
     ax.fill_between(
         yearly_stats["year"],
         yearly_stats["temp_min"],
         yearly_stats["temp_max"],
-        color="skyblue",
+        color=fill_color,
         alpha=0.3,
         label="Range tra Media Min/Max",
     )
@@ -132,7 +190,7 @@ def visualize_weather_data(
     ax.plot(
         yearly_stats["year"],
         yearly_stats["temp_mean"],
-        color="royalblue",
+        color=line_color,
         marker="o",
         label="Temperatura Media Annuale",
     )
@@ -159,16 +217,25 @@ def visualize_weather_data(
         fontsize=18,
         fontweight="bold",
         pad=20,
+        color="white" if dark_theme else "black",
     )
-    ax.set_xlabel("Anno", fontsize=12)
-    ax.set_ylabel("Temperatura (°C)", fontsize=12)
+    ax.set_xlabel("Anno", fontsize=12, color="white" if dark_theme else "black")
+    ax.set_ylabel(
+        "Temperatura (°C)", fontsize=12, color="white" if dark_theme else "black"
+    )
 
     # X ticks
     ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
     plt.xticks(rotation=45)
 
+    # Set tick colors for dark theme
+    if dark_theme:
+        ax.tick_params(colors="white")
+
     ax.legend(fontsize=12)
-    ax.grid(True, linestyle="--", linewidth=0.5)
+    ax.grid(
+        True, linestyle="--", linewidth=0.5, color=grid_color if grid_color else None
+    )
 
     # Add source information
     source_text = f"Fonte: {source_name}"
@@ -235,6 +302,11 @@ if __name__ == "__main__":
         metavar=("START", "END"),
         help="Filter data for a month range (e.g., --month-range 6 8 for June to August)",
     )
+    parser.add_argument(
+        "--dark",
+        action="store_true",
+        help="Use dark theme for the visualization",
+    )
 
     args = parser.parse_args()
 
@@ -269,4 +341,5 @@ if __name__ == "__main__":
         year_range=year_range,
         month=args.month,
         month_range=month_range,
+        dark_theme=args.dark,
     )

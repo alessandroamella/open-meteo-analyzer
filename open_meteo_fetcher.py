@@ -107,16 +107,27 @@ def parse_date_input(date_str, is_start=True):
 
 
 def main():
-    place = input("🔎 Enter the name of the location: ").strip()
-    location = get_coordinates(place)
+    while True:
+        place = input("🔎 Enter the name of the location: ").strip()
+        location = get_coordinates(place)
 
-    if not location:
-        print("❌ Location not found. Try a different name.")
-        return
+        if not location:
+            print("❌ Location not found. Try a different name.")
+            continue
 
-    print(
-        f"✅ Found: {location['name']}, {location.get('country', '')} (lat: {location['latitude']}, lon: {location['longitude']})"
-    )
+        print(
+            f"✅ Found: {location['name']}, {location.get('country', '')} (lat: {location['latitude']}, lon: {location['longitude']})"
+        )
+
+        confirmation = input("Is this the correct location? (y/n): ").strip().lower()
+        if confirmation in ["y", "yes"]:
+            break
+        elif confirmation in ["n", "no"]:
+            print("Let's try again...")
+            continue
+        else:
+            print("Please enter 'y' for yes or 'n' for no.")
+            continue
 
     start_date = input("📅 Enter start date (YYYY-MM-DD, YYYY-MM, or YYYY): ").strip()
     end_date = input("📅 Enter end date (YYYY-MM-DD, YYYY-MM, or YYYY): ").strip()
