@@ -99,16 +99,18 @@ def visualize_weather_data(
         ]
         print(f"🔍 Filtering data for years: {start_year}-{end_year}")
     else:
-        # If no year filter specified, exclude current year
-        df_filtered = df_filtered[df_filtered["year"] < current_year]
+        # If no year filter specified, exclude current year only if no month filter is applied
+        # When month filtering is used, we want to include current year data for past months
+        if month is None and month_range is None:
+            df_filtered = df_filtered[df_filtered["year"] < current_year]
 
     # Filter by month
     if month is not None:
-        # Exclude current and future months for the current year
+        # Only exclude future months for the current year, not past completed months
         df_filtered = df_filtered[
             ~(
                 (df_filtered["year"] == current_year)
-                & (df_filtered["month"] >= current_month)
+                & (df_filtered["month"] > current_month)
             )
         ]
         df_filtered = df_filtered[df_filtered["month"] == month]
@@ -120,11 +122,11 @@ def visualize_weather_data(
         print(f"🔍 Filtering data for month: {month_name}")
     elif month_range is not None:
         start_month, end_month = month_range
-        # Exclude current and future months for the current year
+        # Only exclude future months for the current year, not past completed months
         df_filtered = df_filtered[
             ~(
                 (df_filtered["year"] == current_year)
-                & (df_filtered["month"] >= current_month)
+                & (df_filtered["month"] > current_month)
             )
         ]
         if start_month <= end_month:
