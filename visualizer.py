@@ -20,6 +20,8 @@ def visualize_weather_data(
     month_range=None,
     dark_theme=False,
     show_trend=False,
+    output_filename=None,
+    no_display=False,
 ):
     if not os.path.exists(filename):
         print(f"❌ File '{filename}' not found.")
@@ -330,20 +332,38 @@ def visualize_weather_data(
 
     # Save to file
     os.makedirs("img", exist_ok=True)
-    filename_suffix = ""
-    if year is not None:
-        filename_suffix += f"_year{year}"
-    elif year_range is not None:
-        filename_suffix += f"_years{year_range[0]}-{year_range[1]}"
-    if month is not None:
-        filename_suffix += f"_month{month:02d}"
-    elif month_range is not None:
-        filename_suffix += f"_months{month_range[0]:02d}-{month_range[1]:02d}"
 
-    output_file = f"img/weather_trend_{location_coords}{filename_suffix}.png"
+    if output_filename:
+        # Use custom filename
+        output_file = output_filename
+        # Ensure the custom filename has .png extension
+        if not output_file.endswith(".png"):
+            output_file += ".png"
+        # Add img/ directory if just filename is provided
+        if "/" not in output_file:
+            output_file = f"img/{output_file}"
+    else:
+        # Use default filename pattern
+        filename_suffix = ""
+        if year is not None:
+            filename_suffix += f"_year{year}"
+        elif year_range is not None:
+            filename_suffix += f"_years{year_range[0]}-{year_range[1]}"
+        if month is not None:
+            filename_suffix += f"_month{month:02d}"
+        elif month_range is not None:
+            filename_suffix += f"_months{month_range[0]:02d}-{month_range[1]:02d}"
+
+        output_file = f"img/weather_trend_{location_coords}{filename_suffix}.png"
+
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     print(f"📈 Grafico salvato in: {output_file}")
-    plt.show()
+
+    if not no_display:
+        plt.show()
+    else:
+        print("📄 Grafico non visualizzato (--no-display attivo)")
+        plt.close()  # Close the figure to free memory
 
 
 if __name__ == "__main__":
@@ -353,8 +373,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "filename", help="Path to the JSON file containing weather data"
     )
-    parser.add_argument("--year", type=int, help="Filter data for a specific year")
     parser.add_argument(
+        "-y", "--year", type=int, help="Filter data for a specific year"
+    )
+    parser.add_argument(
+        "-yr",
         "--year-range",
         nargs=2,
         type=int,
@@ -362,6 +385,7 @@ if __name__ == "__main__":
         help="Filter data for a year range (e.g., --year-range 2000 2010)",
     )
     parser.add_argument(
+        "-m",
         "--month",
         type=int,
         choices=range(1, 13),
@@ -369,6 +393,7 @@ if __name__ == "__main__":
         help="Filter data for a specific month (1-12)",
     )
     parser.add_argument(
+        "-mr",
         "--month-range",
         nargs=2,
         type=int,
@@ -376,14 +401,28 @@ if __name__ == "__main__":
         help="Filter data for a month range (e.g., --month-range 6 8 for June to August)",
     )
     parser.add_argument(
+        "-d",
         "--dark",
         action="store_true",
         help="Use dark theme for the visualization",
     )
     parser.add_argument(
+        "-t",
         "--trend",
         action="store_true",
         help="Show linear trend line on the chart",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        help="Custom filename for the output chart (default: auto-generated based on filters)",
+    )
+    parser.add_argument(
+        "-n",
+        "--no-display",
+        action="store_true",
+        help="Save chart without displaying it",
     )
 
     args = parser.parse_args()
@@ -421,4 +460,6 @@ if __name__ == "__main__":
         month_range=month_range,
         dark_theme=args.dark,
         show_trend=args.trend,
+        output_filename=args.output,
+        no_display=args.no_display,
     )

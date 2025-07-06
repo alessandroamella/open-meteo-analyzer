@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 from datetime import datetime
 
@@ -106,7 +107,8 @@ def parse_date_input(date_str, is_start=True):
         )
 
 
-def main():
+def get_location_interactive():
+    """Get location through interactive input."""
     while True:
         place = input("🔎 Enter the name of the location: ").strip()
         location = get_coordinates(place)
@@ -121,7 +123,7 @@ def main():
 
         confirmation = input("Is this the correct location? (y/n): ").strip().lower()
         if confirmation in ["y", "yes"]:
-            break
+            return location
         elif confirmation in ["n", "no"]:
             print("Let's try again...")
             continue
@@ -129,6 +131,9 @@ def main():
             print("Please enter 'y' for yes or 'n' for no.")
             continue
 
+
+def get_dates_interactive():
+    """Get start and end dates through interactive input."""
     start_date = input("📅 Enter start date (YYYY-MM-DD, YYYY-MM, or YYYY): ").strip()
     end_date = input("📅 Enter end date (YYYY-MM-DD, YYYY-MM, or YYYY): ").strip()
 
@@ -136,10 +141,74 @@ def main():
     try:
         start_date = parse_date_input(start_date, is_start=True)
         end_date = parse_date_input(end_date, is_start=False)
+        return start_date, end_date
     except ValueError as e:
         print(f"❌ {e}")
-        return
+        return None, None
 
+
+def parse_arguments():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Fetch weather data from Open-Meteo API",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s --location "Paris" --start-date "2023-01-01" --end-date "2023-12-31"
+  %(prog)s -l "New York" -s "2023" -e "2023" -o "ny_weather_2023"
+  %(prog)s --location "Tokyo" --start-date "2023-06" --end-date "2023-08"
+  %(prog)s --check-location "London" --location-output-file "london_coords"
+  %(prog)s -c "San Francisco"
+  %(prog)s -l "Berlin" -s "2024" -e "2024" --output-file "berlin_temp_data"
+        """,
+    )
+
+    parser.add_argument(
+        "-l",
+        "--location",
+        type=str,
+        help="Name of the location to fetch weather data for",
+    )
+
+    parser.add_argument(
+        "-s",
+        "--start-date",
+        type=str,
+        help="Start date (YYYY, YYYY-MM, or YYYY-MM-DD format)",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--end-date",
+        type=str,
+        help="End date (YYYY, YYYY-MM, or YYYY-MM-DD format)",
+    )
+
+    parser.add_argument(
+        "-c",
+        "--check-location",
+        type=str,
+        help="Just check/lookup a location and display its coordinates (no weather data fetching)",
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output-file",
+        type=str,
+        help="Custom filename for weather data output (without .json extension)",
+    )
+
+    parser.add_argument(
+        "--location-output-file",
+        type=str,
+        help="Custom filename for location check output (without .json extension)",
+    )
+
+    return parser.parse_args()
+
+
+def process_weather_data(location, start_date, end_date, output_filename=None):
+    """Process weather data for given location and date range."""
     print(f"📥 Fetching data from {start_date} to {end_date}...")
 
     try:
@@ -148,7 +217,7 @@ def main():
         )
     except Exception as e:
         print(f"❌ Failed to fetch data: {e}")
-        return
+        return False
 
     # Add location metadata to the data
     enhanced_data = {
@@ -170,11 +239,107 @@ def main():
         "weather_data": data,
     }
 
-    filename = f"{location['name'].replace(' ', '_')}_{start_date}_to_{end_date}.json"
+    # Use custom filename if provided, otherwise use default format
+    if output_filename:
+        filename = f"{output_filename}.json"
+    else:
+        filename = (
+            f"{location['name'].replace(' ', '_')}_{start_date}_to_{end_date}.json"
+        )
+
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(enhanced_data, f, indent=4)
 
     print(f"✅ Data saved to `{filename}`")
+    return True
+
+
+def main():
+    args = parse_arguments()
+
+    # Handle check-location mode
+    if args.check_location:
+        print(f"🔎 Looking up location: {args.check_location}")
+        location = get_coordinates(args.check_location)
+        if not location:
+            print(f"❌ Location '{args.check_location}' not found.")
+            return
+
+        print(f"✅ Found: {location['name']}, {location.get('country', '')}")
+        print(f"📍 Coordinates: {location['latitude']}, {location['longitude']}")
+        if "admin1" in location:
+            print(f"🏛️  Admin area: {location['admin1']}")
+        if "timezone" in location:
+            print(f"🕐 Timezone: {location['timezone']}")
+
+        # Save location data to JSON file
+        location_data = {
+            "source": {
+                "name": "Open-Meteo Geocoding",
+                "description": "Location lookup using Open-Meteo geocoding API",
+                "geocoding_url": "https://geocoding-api.open-meteo.com/v1/search",
+                "website": "https://open-meteo.com/",
+                "license": "Open data with attribution required",
+            },
+            "query": args.check_location,
+            "location": location,
+            "lookup_timestamp": datetime.now().isoformat(),
+        }
+
+        # Use custom filename if provided, otherwise use default format
+        if args.location_output_file:
+            filename = f"{args.location_output_file}.json"
+        else:
+            filename = f"location_{location['name'].replace(' ', '_')}.json"
+
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(location_data, f, indent=4)
+
+        print(f"💾 Location data saved to `{filename}`")
+        return
+
+    # Check if all required arguments are provided
+    if args.location and args.start_date and args.end_date:
+        # Use command-line arguments
+        print("🚀 Using command-line arguments...")
+
+        # Get location from argument
+        location = get_coordinates(args.location)
+        if not location:
+            print(f"❌ Location '{args.location}' not found.")
+            return
+
+        print(
+            f"✅ Found: {location['name']}, {location.get('country', '')} (lat: {location['latitude']}, lon: {location['longitude']})"
+        )
+
+        # Parse dates from arguments
+        try:
+            start_date = parse_date_input(args.start_date, is_start=True)
+            end_date = parse_date_input(args.end_date, is_start=False)
+        except ValueError as e:
+            print(f"❌ {e}")
+            return
+
+    else:
+        # Use interactive mode
+        if args.location or args.start_date or args.end_date:
+            print(
+                "⚠️ Some arguments provided but not all. Switching to interactive mode..."
+            )
+        # else:
+        #     print("🎮 Interactive mode - no arguments provided...")
+
+        # Get location interactively
+        location = get_location_interactive()
+
+        # Get dates interactively
+        start_date, end_date = get_dates_interactive()
+        if start_date is None or end_date is None:
+            return
+
+    # Process the weather data
+    process_weather_data(location, start_date, end_date, args.output_file)
 
 
 if __name__ == "__main__":
