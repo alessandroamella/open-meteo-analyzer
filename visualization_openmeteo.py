@@ -7,12 +7,19 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
 
 def visualize_weather_data(
-    filename, year=None, year_range=None, month=None, month_range=None, dark_theme=False
+    filename,
+    year=None,
+    year_range=None,
+    month=None,
+    month_range=None,
+    dark_theme=False,
+    show_trend=False,
 ):
     if not os.path.exists(filename):
         print(f"❌ File '{filename}' not found.")
@@ -195,6 +202,71 @@ def visualize_weather_data(
         label="Temperatura Media Annuale",
     )
 
+    # Add trend line if requested
+    if show_trend:
+        years = yearly_stats["year"].values
+        temps = yearly_stats["temp_mean"].values
+
+        # Calculate linear regression
+        coeffs = np.polyfit(years, temps, 1)
+        trend_line = np.poly1d(coeffs)
+
+        trend_color = "orange" if dark_theme else "red"
+        ax.plot(
+            years,
+            trend_line(years),
+            color=trend_color,
+            linestyle="--",
+            linewidth=2,
+            label="Trend (Regressione Lineare)",
+        )
+
+        # Add start and end points on the trend line
+        start_year = years[0]
+        end_year = years[-1]
+        start_temp = trend_line(start_year)
+        end_temp = trend_line(end_year)
+
+        # Plot trend start and end points
+        ax.plot(
+            [start_year, end_year],
+            [start_temp, end_temp],
+            color=trend_color,
+            marker="s",
+            markersize=8,
+            linestyle="None",
+            markeredgecolor="white" if dark_theme else "black",
+            markeredgewidth=1,
+            alpha=0.8,
+        )
+
+        # Add temperature annotations at start and end points
+        ax.annotate(
+            f"{start_temp:.1f}°C",
+            (start_year, start_temp),
+            xytext=(-6, -3.5),
+            textcoords="offset points",
+            fontsize=9,
+            color=trend_color,
+            weight="bold",
+            ha="right",
+        )
+
+        ax.annotate(
+            f"{end_temp:.1f}°C",
+            (end_year, end_temp),
+            xytext=(6, -3.5),
+            textcoords="offset points",
+            fontsize=9,
+            color=trend_color,
+            weight="bold",
+            ha="left",
+        )
+
+        print(f"📊 Trend lineare: {coeffs[0]:.3f}°C per anno")
+        print(f"📍 Temperatura trend inizio ({start_year}): {start_temp:.1f}°C")
+        print(f"📍 Temperatura trend fine ({end_year}): {end_temp:.1f}°C")
+
     # Titles and labels
     title_suffix = ""
     if year is not None:
@@ -233,9 +305,10 @@ def visualize_weather_data(
         ax.tick_params(colors="white")
 
     ax.legend(fontsize=12)
-    ax.grid(
-        True, linestyle="--", linewidth=0.5, color=grid_color if grid_color else None
-    )
+    grid_kwargs = {"linestyle": "--", "linewidth": 0.5}
+    if grid_color:
+        grid_kwargs["color"] = grid_color
+    ax.grid(True, **grid_kwargs)
 
     # Add source information
     source_text = f"Fonte: {source_name}"
@@ -307,6 +380,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Use dark theme for the visualization",
     )
+    parser.add_argument(
+        "--trend",
+        action="store_true",
+        help="Show linear trend line on the chart",
+    )
 
     args = parser.parse_args()
 
@@ -342,4 +420,5 @@ if __name__ == "__main__":
         month=args.month,
         month_range=month_range,
         dark_theme=args.dark,
+        show_trend=args.trend,
     )
